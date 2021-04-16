@@ -1,48 +1,60 @@
-//100904082052680300864200910010049806498300701607010093086035209509002130030497008
-//100070030830600000002900608600004907090000050307500004203009100000002043040080009
+//Easy - 100904082052680300864200910010049806498300701607010093086035209509002130030497008
+//Mid - 100070030830600000002900608600004907090000050307500004203009100000002043040080009
+//Hard - 000700000100000000000430200000000006000509000000000418000081000002000050040000300
+//Unsolvable - 200900000000000060000001000502600407000004100000098023000003080005010000007000000
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
 
+//Each possibilityArray has an array of 9 "possibilities"
+//-Number is the value of the possibility (each nummber from 1 to 9)
+//-Valid is a boolean that tells if the number is actually usable.
 struct possibility{
 	int number;
 	int valid;
 };
 
+//Each cell has a "possibilityArray"
+//-Available is the total numbers that are available for its cell. 
+//-Array is an array of the struct below. It contains the numbers 1 to 9.
 struct possibilityArray{
 	struct possibility array[9];
 	int available;
 };
+
+//Each sudoku has 81 "cells",
+//-Number is the current value of the cell (from 1 to 9) 
+//-Attempts is the number of guesses that have been made; it gets reset when moving back to a previous cell
+//-Head is a struct (see below)
 //maybe add row and col ? so can pass the cell instead? mmhh
 struct cell{
 	int number;
-	struct possibilityArray head;
 	int attempts;
+	struct possibilityArray head;
 };
 
-
+//When making a guess for a cell, a "guess" struct gets created.
+//Number_guessed is the number that has been guessed for the cell
+//Row is the row of the cell that has been guessed
+//Column is the column of the cell that has been guessed
 struct guess{
 	int row;
 	int column;
 	int number_guessed;
 };
 
-
-
 //Debug function to print the numbers that are possible for a given cell
-void printArrayOfPossibility(struct cell cell, int row, int column){
-	printf("POSSIBILITIES FOR [%d][%d]: ", row+1, column+1);
+void print_array_of_possibility(struct cell matrix[9][9], int row, int column){
 	for(int i=0; i<9; i++){
-		if(cell.head.array[i].valid) printf("%d", cell.head.array[i].number);
+		if(matrix[row][column].head.array[i].valid) printf("%d, ", matrix[row][column].head.array[i].number);
 	}
-	printf("; Available: %d\n", cell.head.available);
+	printf("; Available: %d\n", matrix[row][column].head.available);
 }
 
-
-//Function to print the current status of the sudoku
+//Function to print the current status of the sudoku matrix
 void print_matrix(struct cell matrix[9][9]){
-	//system("clear"); only works on unix and is slow rip
+	printf("\e[1;1H\e[2J"); //Clears the console much more quickly than system(clear)
 	for (int i=1; i<10; i++){
 		for (int j=1; j<10; j++){
 			printf("%d ", matrix[i-1][j-1].number);
@@ -85,191 +97,169 @@ int take_input(struct cell matrix[9][9]){
 	return solved;
 }
 
-
-
-//Function that checks all the numbers in the same row and column of the given cell and
-//it removes the numbers that can't be in the given cell from the array of possibilities.
-//TODO: Implement search for number in same square
-void find_cell_possibilities(struct cell matrix[9][9], int row, int column){
-
-	//Check all the rows in the given column
+//Function that checks all the numbers in the same row, column and square of the given cell and
+//it removes the numbers that can't be in the given cell from the array of possible numbers.
+//TODO: Improve search in same square
+int find_cell_possibilities(struct cell matrix[9][9], int row, int column){
+	int n;
+	//Check all the rows in the given column and updates the array of possibilities and the valid numbers
 	for(int i=0; i<9; i++){
-		if(matrix[i][column].number!=0){
-			int n = matrix[i][column].number;
-			
+		n = matrix[i][column].number;
+		if(n!=0 && matrix[row][column].head.array[n-1].valid){		
 			matrix[row][column].head.array[n-1].valid = 0;
-
-			//Can't decrement "available" cause it causes underflow when this function is 
-			//called more than once
-			int x = 0;
-			for (int i=0; i<9; i++){
-				if (matrix[row][column].head.array[i].valid) x++;
-			}
-			matrix[row][column].head.available = x;
-
+			//matrix[row][column].head.available -= 1;
 		}
 	}
 
-
-	//check all the columns in the given row
+	//check all the columns in the given row and updates the array of possibilities and the valid numbers
 	for(int i=0; i<9; i++){
-		if(matrix[row][i].number!=0){
-			int n = matrix[row][i].number;
-			if(matrix[row][column].head.array[n-1].valid){
-				matrix[row][column].head.array[n-1].valid = 0;
-				matrix[row][column].head.available -= 1;
-			}
+		n = matrix[row][i].number;
+		if(n!=0 && matrix[row][column].head.array[n-1].valid){
+			matrix[row][column].head.array[n-1].valid = 0;
+			//matrix[row][column].head.available -= 1;
 		}
 	}
 
 
-}
-
-
-//Check if the number inserted in cell [row][column] conflicts with a number already placed
-//general structure is similar to "find cell possibilities" function
-int check_for_conflict(struct cell matrix[9][9], int row, int column){
-
-	//Check the column by iterating over rows
-	for(int i=0; i<9; i++){
-		if(matrix[i][column].number == matrix[row][column].number && i!=row){
-			//There's a conflict
-			printf("Conflict in column\n");
-			return 0;
-		}
-	}
-
-
-	//Check the row by iterating over the columns
-	for(int j=0; j<9; j++){
-		if(matrix[row][j].number == matrix[row][column].number && j!=column){
-			//There's a conflict
-			printf("conflict in row\n");
-			return 0;
-		}
-	}
-
-
-	//Check the 3x3 square
-	//To understand what position i am inside the square i check the remainder of the row and column %3
-	//If the remainder is 0, i am on the leftmost column of a square or a highest row of a square, so i need to move right/down twice;
-	//If the remainder is 1, i am in the second of the three rows or columns, so i need to check the previous and the next
-	//If the remainder is 2, i am in the rightmost or lowest of columns/rows, so i need to check the previous 2
-	//This means there are 9? possiblities. Can it be done with fewer?
-	
-	//TopLeft cell
+	//MAYBE use switch 
+	//TopLeft cell; Checks the square and updates the array of possibilities and the valid numbers
 	if(row%3 == 0 && column%3 == 0){
 		for (int i = row; i < row+3; i++){
 			for(int j = column; j < column+3; j++){
-				if (matrix[i][j].number == matrix[row][column].number && i!=row && j!=column){
-					printf("Found conflict in square 1\n");
-					return 0;
+				n = matrix[i][j].number;
+				if(n != 0 && matrix[row][column].head.array[n-1].valid){
+					matrix[row][column].head.array[n-1].valid = 0;
+					//matrix[row][column].head.available -= 1;
 				}
 			}
 		}
 	}
 
-	//TopMid cell
+
+	//TopMid cell; Checks the square and updates the array of possibilities and the valid numbers
 	else if(row%3 == 0 && column%3 == 1){
 		for (int i = row; i < row+3; i++){
 			for(int j = column-1; j < column+2; j++){
-				if (matrix[i][j].number == matrix[row][column].number && i!=row && j!=column){
-					printf("Found conflict in square 2 \n");
-					return 0;
+				n = matrix[i][j].number;
+				if(n != 0 && matrix[row][column].head.array[n-1].valid){
+					matrix[row][column].head.array[n-1].valid = 0;
+					//matrix[row][column].head.available -= 1;
 				}
 			}
 		}
 	}
 
-	//TopRight cell
+	//TopRight cell; Checks the square and updates the array of possibilities and the valid numbers
 	else if(row%3 == 0 && column%3 == 2){
 		for (int i = row; i < row+3; i++){
 			for(int j = column-2; j < column+1; j++){
-				if (matrix[i][j].number == matrix[row][column].number && i!=row && j!=column){
-					printf("Found conflict in square 3\n");
-					return 0;
+				n = matrix[i][j].number;
+				if(n != 0 && matrix[row][column].head.array[n-1].valid){
+					matrix[row][column].head.array[n-1].valid = 0;
+					//matrix[row][column].head.available -= 1;
 				}
 			}
 		}
 	}
 
-	//MidLeft cell
+	//MidLeft cell; Checks the square and updates the array of possibilities and the valid numbers
 	else if(row%3 == 1 && column%3 == 0){
 		for (int i = row-1; i < row+2; i++){
 			for(int j = column; j < column+3; j++){
-				if (matrix[i][j].number == matrix[row][column].number && i!=row && j!=column){
-					printf("Found conflict in square 4\n");
-					return 0;
+				n = matrix[i][j].number;
+				if(n != 0 && matrix[row][column].head.array[n-1].valid){
+					matrix[row][column].head.array[n-1].valid = 0;
+					//matrix[row][column].head.available -= 1;
 				}
 			}
 		}
 	}
 
-	//Mid cell
+	//Mid cell; Checks the square and updates the array of possibilities and the valid numbers
 	else if(row%3 == 1 && column%3 == 1){
 		for (int i = row-1; i < row+2; i++){
 			for(int j = column-1; j < column+2; j++){
-				if (matrix[i][j].number == matrix[row][column].number && i!=row && j!=column) {
-					printf("Found conflict in square 5\n");
-					return 0;
+				n = matrix[i][j].number;
+				if(n != 0 && matrix[row][column].head.array[n-1].valid){
+					matrix[row][column].head.array[n-1].valid = 0;
+					//matrix[row][column].head.available -= 1;
 				}
 			}
 		}
 	}
 
-	//MidRight cell
+	//MidRight cell; Checks the square and updates the array of possibilities and the valid numbers
 	else if(row%3 == 1 && column%3 == 2){
 		for (int i = row-1; i < row+2; i++){
 			for(int j = column-2; j < column+1; j++){
-				if (matrix[i][j].number == matrix[row][column].number && i!=row && j!=column){
-					printf("Found conflict in square 6\n");
-					return 0;
+				n = matrix[i][j].number;
+				if(n != 0 && matrix[row][column].head.array[n-1].valid){
+					matrix[row][column].head.array[n-1].valid = 0;
+					//matrix[row][column].head.available -= 1;
 				}
 			}
 		}
 	}
 
-	//BotLeft cell
+	//BotLeft cell; Checks the square and updates the array of possibilities and the valid numbers
 	else if(row%3 == 2 && column%3 == 0){
 		for (int i = row-2; i < row+1; i++){
 			for(int j = column; j < column+3; j++){
-				if (matrix[i][j].number == matrix[row][column].number && i!=row && j!=column){
-					printf("Found conflict in square 7\n");
-					return 0;
+				n = matrix[i][j].number;
+				if(n != 0 && matrix[row][column].head.array[n-1].valid){
+					matrix[row][column].head.array[n-1].valid = 0;
+					//matrix[row][column].head.available -= 1;
 				}
 			}
 		}
 	}
 
-	//BotLeft cell
+	//BotMid cell; Checks the square and updates the array of possibilities and the valid numbers
 	else if(row%3 == 2 && column%3 == 1){
 		for (int i = row-2; i < row+1; i++){
 			for(int j = column-1; j < column+2; j++){
-				if (matrix[i][j].number == matrix[row][column].number && i!=row && j!=column){
-					printf("Found conflict in square 8\n");
-					return 0;
+				n = matrix[i][j].number;
+				if(n != 0 && matrix[row][column].head.array[n-1].valid){
+					matrix[row][column].head.array[n-1].valid = 0;
+					//matrix[row][column].head.available -= 1;
 				}
 			}
 		}
 	}
 
-	//BotLeft cell
+	//BotRight cell; Checks the square and updates the array of possibilities and the valid numbers
 	else if(row%3 == 2 && column%3 == 2){
 		for (int i = row-2; i < row+1; i++){
 			for(int j = column-2; j < column+1; j++){
-				if (matrix[i][j].number == matrix[row][column].number && i!=row && j!=column){
-					printf("Found conflict in square 9\n");
-					return 0;
+				n = matrix[i][j].number;
+				if(n != 0 && matrix[row][column].head.array[n-1].valid){
+					matrix[row][column].head.array[n-1].valid = 0;
+					//matrix[row][column].head.available -= 1;
 				}
 			}
 		}
 	}
-
-	return 1;
+	
+	//Update the "available" numbers and return it
+	int x = 0;
+	for (int i=0; i<9; i++){
+		if (matrix[row][column].head.array[i].valid) x++;
+	}
+	matrix[row][column].head.available = x;
+	return x;
 }
 
+//Function that resets the array of possible numbers of a cell when going back to a previous cell
+void reset_array_of_possibilities(struct cell matrix[9][9], int row, int column){
+	for(int i=0; i<9; i++){
+		matrix[row][column].head.array[i].valid = 1;
+		matrix[row][column].head.available = 9;
+	}
+}
 
-
+//Function that actually solves the sudoku.
+//First it tries solving the "naked singles" until there are no more
+//and than moves to the backtracking algorithm
 //TODO: implement solving of more complex cases before going for the backtracking alg
 void solve(struct cell matrix[9][9], int solved){
 
@@ -278,151 +268,150 @@ void solve(struct cell matrix[9][9], int solved){
 	//Until the sudoku is solved
 	while(solved < 81){
 		
-		//Scan all cell to find one with only one possibility available
+		//Scan all cell to find one with only one possibility available (aka a "naked single")
 		for (int i=0; i<9; i++){
 			for (int j=0; j<9; j++){
-				//printf("[%d][%d] has %d available\n", i, j, matrix[i][j].head.available);
-
 				if (matrix[i][j].head.available == 1){
 
 					//If only one number is available, find it
-					int n=0;
+					int n = 0;
 					while(!matrix[i][j].head.array[n].valid) n++;
-					//printf("N is %d\n", n);
 
+					//Set the cell to that number, make it non valid and decrement the number of available options
 					matrix[i][j].head.array[n].valid = 0;
-
 					matrix[i][j].head.available -= 1;
-
 					matrix[i][j].number = n+1;
-					solved ++;
 
+					//Increment the solved cells
+					solved ++;
 					print_matrix(matrix);
 
 				}
 			}
 		}
 		
+
+		//This condition is true only when there are no more "naked singles"
+		//It breaks out of the while loop and moves to the backtracking alg
 		if(starting == solved){
-			printf("NEED TO CHANGE TO BACKTRACKING ALGORITHM\n");
+			//printf("NEED TO CHANGE TO BACKTRACKING ALGORITHM\n");
 			break;
 		}
 
-		//Calculate possibilities again
+		//Calculate possibilities of each cell again before the next iteration of the loop
 		for (int i=0; i<9; i++){
 			for (int j=0; j<9; j++){ 
-				if(matrix[i][j].number == 0) find_cell_possibilities(matrix, i, j);
+				if(matrix[i][j].number == 0) 
+					if(!find_cell_possibilities(matrix, i, j)){
+						printf("Unsolvable\n");
+						return;
+					}
 			}
 		}
 
+		//update the variable so that the exit conditoin is not always true at the second iteration
 		starting = solved;
 	}
 
 
 	//BACKTRACKING ALGORITHM
-	//Starting from the first free cell, choose an available number and check if there's a
-	//contradiction. If not move to next free cell and repeat process; If yes move back
-	//to last cell that was filled with a guess and change the guess.
+	//Starting from the first unsolved cell, choose an available number and move to the next cell
+	//If the next cell has at least one available numbers repeat
+	//If the next cell has no available numbers, move back to the previous cell that was guessed
+	//and choose the next available number
 
 
 	//Put all the cells that have been guessed in an array so we can backtrack
-	//We use a new struct bc its way easier maybe i actually don't know
+	//We use a new struct bc its easier maybe i'm actually not sure
+	//r and c are the row and column of the cell that is currently in the array at position [array_head]
 	int r, c, array_head = 0;
-	int size = 81 - solved;
-	struct guess array_of_guesses[size];
+	int size = 81 - solved; //Number of cells to solve
+	struct guess array_of_guesses[size]; //Array of guessed cell
+
 	while(solved < 81){
-		printf("%d\n", matrix[0][2].attempts);
+
+		//If we have tried all available numbers for a cell, we reset its array of possibilities
+		//and move back to the previous cell guessed
 		if(matrix[r][c].attempts >= 9){
+			if(array_head == 0){
+				//The first cell that was guessed has tried all numbers, so the sudoku is unsolvable
+				printf("Unsolvable");
+				break;
+			}
+			//printf("[%d][%d] has tried all numbers, going back\n", r, c);
+			reset_array_of_possibilities(matrix, r, c);
 			matrix[r][c].attempts = 0;
 			array_head--;
-			solved --;
+			solved--;
 			matrix[array_of_guesses[array_head].row][array_of_guesses[array_head].column].number = 0;
-			printf("ARRAY HEAD AT %d\n", array_head);
-			continue;
-		}
-		//I made it stupid so it restarts for every conflict, i really should use more data structures lol
-		//It needs to "reload" the guesses that it has made till now
-		for (int n=0; n<array_head; n++){
-			r = array_of_guesses[n].row;
-			c = array_of_guesses[n].column;
-			matrix[r][c].number = array_of_guesses[n].number_guessed;
+			//Need to update r & c because the next iteration could also enter this part of the code
+			r = array_of_guesses[array_head].row;
+			c = array_of_guesses[array_head].column;
+			continue; //Force the next iteration of the while loop
 		}
 
-
+		//Scan each cell
 		for (int i=0; i<9; i++){
 			for (int j=0; j<9; j++){
-				
-				if(matrix[i][j].number == 0){	//Cell is empty and has to be guessed
-					int attempts = matrix[i][j].attempts;
-					int number_guess = matrix[i][j].head.array[attempts].number;
 
-					//while(!curr.array[number_guess].valid && number_guess<10){ //Find the first currently available number as a guess
-					//	number_guess++;
-					//}	
-
-					//if(number_guess == 9){
-					//	printf("Unsolvable\n");
-					//	return;
-					//}
-
-					array_of_guesses[array_head].number_guessed = number_guess;
-					array_of_guesses[array_head].row = i;
-					array_of_guesses[array_head].column = j;
-					array_head++; 
-
-					matrix[i][j].number = number_guess;
-					matrix[i][j].attempts++;
-					solved++;
-					printf("Guessed %d in [%d][%d]\n", number_guess, i, j);
-					print_matrix(matrix);
-					//sleep(1);
-
-					if(check_for_conflict(matrix, i, j) == 1){ //No Conflicts
-						//Do nothing i guess
-						printf("It seems ok\n");
-					}
-				
-					if(check_for_conflict(matrix, i, j) == 0){ //There's a conflict
-						//Need to go back and in the loop without restarting? fuck
-						//This is hacky as fuck
-						//printf("[%d][%d] guess (%d) is wrong panic AAAAAAAAAAAA\n\n\n", i, j, matrix[i][j].number);
-						//sleep(1);
-						matrix[i][j].number = 0;
-						r=i, c=j;
-						solved -= 1;
-						array_head -= 1;
-						i=9;
-						j=9;
+				if(matrix[i][j].number == 0){	//The cell is empty and has to be guessed
+					//Update the possibile numbers of the cell
+					//If there are no available numbers, reset the current cell
+					//And move back to the previous cell guessed
+					if(!find_cell_possibilities(matrix, i, j)){
+						matrix[i][j].attempts = 0;
+						reset_array_of_possibilities(matrix, i, j);
+						array_head--;
+						solved--;
+						int prev_row = array_of_guesses[array_head].row;
+						int prev_col = array_of_guesses[array_head].column;
+						r=prev_row, c=prev_col;
+						matrix[prev_row][prev_col].number = 0;
+						i=j=9; //Needed to exit the nested fors
+						print_matrix(matrix);
 						break;
 					}
+					
+					//If there's at least one available number,
+					//find the first number that is valid and that hasn't been tried yet. 
+					else{
+						int attempts = matrix[i][j].attempts;
+						//Find the next available number
+						while(!matrix[i][j].head.array[attempts].valid && attempts<=9) attempts++;
+						int number_guess = matrix[i][j].head.array[attempts].number;
+						matrix[i][j].attempts = attempts;
+						
+						//If the available number(s) have already been tried
+						if(attempts >= 9){
+							i=j=9;
+							break; //Exit for loops
+						}
 
+						//Put the guess and its info in the array
+						array_of_guesses[array_head].number_guessed = number_guess;
+						array_of_guesses[array_head].row = i;
+						array_of_guesses[array_head].column = j;
+						array_head++; 
+
+						//Put the guess in the sudoku matrix and update the necessary info
+						matrix[i][j].number = number_guess;
+						matrix[i][j].attempts++;
+						solved++;
+						print_matrix(matrix);
+					}
 				}
-
 			}
 		}
-
 	}
-
-	printf("%d\n", solved);
 }
-
-
-
-
-
-
-
-
 
 int main(){
 	struct cell matrix[9][9];
 
-
 	int solved = take_input(matrix);
 	printf("Solved %d/81 cells\n", solved);
-	print_matrix(matrix);
 
-	//Find the possibilities for every cell
+	//Find the possible numbers for every cell
 	for (int i=0; i<9; i++){
 		for (int j=0; j<9; j++){ 
 			if(matrix[i][j].number == 0) find_cell_possibilities(matrix, i, j);
@@ -436,6 +425,4 @@ int main(){
 	print_matrix(matrix);
 	double time_spent = (double) (end - begin) / CLOCKS_PER_SEC;
 	printf("Execution time: %lf s\n", time_spent);
-
-	printf("DONE\n");
 }
